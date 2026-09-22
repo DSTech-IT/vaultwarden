@@ -118,6 +118,21 @@ fn sanitize_data(data: &mut serde_json::Value) {
     }
 }
 
+// The `atype` value passed to the emergency access emails is always the English literal
+// "View" or "Takeover" (see `EmergencyAccess::get_type_as_str()`), since it's stored and
+// compared as such. Translate it into the sentence fragment each locale's template expects,
+// falling back to the English literal for any locale without a translation.
+fn translate_emergency_access_type(atype: &str, locale: &str) -> String {
+    match (locale, atype) {
+        ("de", "View") => "einsehen",
+        ("de", "Takeover") => "übernehmen",
+        ("fr", "View") => "consulter",
+        ("fr", "Takeover") => "prendre le contrôle de",
+        _ => atype,
+    }
+    .to_owned()
+}
+
 fn get_text(
     template_name: &'static str,
     locale: &str,
@@ -453,7 +468,7 @@ pub async fn send_emergency_access_recovery_initiated(
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
             "grantee_name": grantee_name,
-            "atype": atype,
+            "atype": translate_emergency_access_type(atype, locale),
             "wait_time_days": wait_time_days,
         }),
     )?;
@@ -475,7 +490,7 @@ pub async fn send_emergency_access_recovery_reminder(
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
             "grantee_name": grantee_name,
-            "atype": atype,
+            "atype": translate_emergency_access_type(atype, locale),
             "days_left": days_left,
         }),
     )?;
@@ -510,7 +525,7 @@ pub async fn send_emergency_access_recovery_timed_out(
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
             "grantee_name": grantee_name,
-            "atype": atype,
+            "atype": translate_emergency_access_type(atype, locale),
         }),
     )?;
 
