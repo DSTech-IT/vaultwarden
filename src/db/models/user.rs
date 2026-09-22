@@ -71,6 +71,8 @@ pub struct User {
     pub external_id: Option<String>, // Todo: Needs to be removed in the future, this is not used anymore.
 
     pub key_id: Option<KeyId>,
+
+    pub locale: Option<String>,
 }
 
 #[derive(Identifiable, Queryable, Insertable)]
@@ -110,6 +112,10 @@ pub struct UserStampException {
 impl User {
     pub const CLIENT_KDF_TYPE_DEFAULT: i32 = UserKdfType::Pbkdf2 as i32;
     pub const CLIENT_KDF_ITER_DEFAULT: i32 = 600_000;
+
+    /// Fallback locale used whenever a user has no locale set, or the locale
+    /// they picked has no translated email templates (yet).
+    pub const DEFAULT_LOCALE: &'static str = "en";
 
     pub fn new(email: &str, name: Option<String>) -> Self {
         let now = Utc::now().naive_utc();
@@ -158,6 +164,8 @@ impl User {
             external_id: None, // Todo: Needs to be removed in the future, this is not used anymore.
 
             key_id: None,
+
+            locale: None,
         }
     }
 
@@ -253,6 +261,23 @@ impl User {
             &self.name
         }
     }
+
+    /// The user's preferred locale, normalized to a bare language code (e.g. `de`).
+    /// Falls back to `DEFAULT_LOCALE` (English) when unset.
+    pub fn locale(&self) -> &str {
+        self.locale.as_deref().unwrap_or(Self::DEFAULT_LOCALE)
+    }
+
+    /// Normalizes a client-supplied culture code (e.g. `de-DE`, `fr_FR`) down to
+    /// the bare lowercase language code used to pick email templates.
+    pub fn normalize_locale(culture: &str) -> Option<String> {
+        let lang = culture.split(['-', '_']).next().unwrap_or("").trim().to_lowercase();
+        if lang.is_empty() {
+            None
+        } else {
+            Some(lang)
+        }
+    }
 }
 
 /// Database methods
@@ -302,7 +327,7 @@ impl User {
             "emailVerified": !CONFIG.mail_enabled() || self.verified_at.is_some(),
             "premium": true,
             "premiumFromOrganization": false,
-            "culture": "en-US",
+            "culture": self.locale(),
             "twoFactorEnabled": twofactor_enabled,
             "key": self.akey,
             "privateKey": self.private_key,

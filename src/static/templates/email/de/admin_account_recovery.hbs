@@ -1,0 +1,13 @@
+Admin-Kontowiederherstellung von der Organisation {{org_name}}
+<!---------------->
+{{#if reset_password}}
+Das Master-Passwort für {{user_name}} wurde geändert.
+{{/if}}
+{{#if reset_2fa}}
+Ihre Zwei-Faktor-Anbieter wurden zurückgesetzt.{{#if fallback_2fa_email}} E-Mail-Zwei-Faktor wurde als Ausweichoption aktiviert.{{/if}}
+{{/if}}
+
+Wenn Sie diese Anfrage nicht selbst veranlasst haben, wenden Sie sich bitte umgehend an Ihren Administrator.
+
+{{> email/email_footer_text }}
+

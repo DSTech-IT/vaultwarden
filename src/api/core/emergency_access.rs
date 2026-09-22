@@ -257,6 +257,7 @@ async fn send_invite(data: Json<EmergencyAccessInviteData>, headers: Headers, co
         err!(format!("Grantee user already invited: {}", &grantee_user.email))
     }
 
+    let grantee_locale = grantee_user.locale().to_owned();
     let mut new_emergency_access =
         EmergencyAccess::new(grantor_user.uuid, grantee_user.email, emergency_access_status, new_type, wait_time_days);
     new_emergency_access.save(&conn).await?;
@@ -268,6 +269,7 @@ async fn send_invite(data: Json<EmergencyAccessInviteData>, headers: Headers, co
             new_emergency_access.uuid,
             &grantor_user.name,
             &grantor_user.email,
+            &grantee_locale,
         )
         .await?;
     } else if !new_user {
@@ -303,12 +305,14 @@ async fn resend_invite(emer_id: EmergencyAccessId, headers: Headers, conn: DbCon
     let grantor_user = headers.user;
 
     if CONFIG.mail_enabled() {
+        let grantee_locale = grantee_user.locale().to_owned();
         mail::send_emergency_access_invite(
             &email,
             grantor_user.uuid,
             emergency_access.uuid,
             &grantor_user.name,
             &grantor_user.email,
+            &grantee_locale,
         )
         .await?;
     } else if !grantee_user.password_hash.is_empty() {
@@ -374,7 +378,12 @@ async fn accept_invite(
         emergency_access.accept_invite(&grantee_user.uuid, &grantee_user.email, &conn).await?;
 
         if CONFIG.mail_enabled() {
-            mail::send_emergency_access_invite_accepted(&grantor_user.email, &grantee_user.email).await?;
+            mail::send_emergency_access_invite_accepted(
+                &grantor_user.email,
+                &grantee_user.email,
+                grantor_user.locale(),
+            )
+            .await?;
         }
 
         Ok(())
@@ -430,7 +439,12 @@ async fn confirm_emergency_access(
         emergency_access.save(&conn).await?;
 
         if CONFIG.mail_enabled() {
-            mail::send_emergency_access_invite_confirmed(&grantee_user.email, &grantor_user.name).await?;
+            mail::send_emergency_access_invite_confirmed(
+                &grantee_user.email,
+                &grantor_user.name,
+                grantee_user.locale(),
+            )
+            .await?;
         }
         Ok(Json(emergency_access.to_json()))
     } else {
@@ -474,6 +488,7 @@ async fn initiate_emergency_access(emer_id: EmergencyAccessId, headers: Headers,
             &initiating_user.name,
             emergency_access.get_type_as_str(),
             &emergency_access.wait_time_days,
+            grantor_user.locale(),
         )
         .await?;
     }
@@ -507,7 +522,12 @@ async fn approve_emergency_access(emer_id: EmergencyAccessId, headers: Headers, 
         emergency_access.save(&conn).await?;
 
         if CONFIG.mail_enabled() {
-            mail::send_emergency_access_recovery_approved(&grantee_user.email, &grantor_user.name).await?;
+            mail::send_emergency_access_recovery_approved(
+                &grantee_user.email,
+                &grantor_user.name,
+                grantee_user.locale(),
+            )
+            .await?;
         }
         Ok(Json(emergency_access.to_json()))
     } else {
@@ -540,7 +560,12 @@ async fn reject_emergency_access(emer_id: EmergencyAccessId, headers: Headers, c
         emergency_access.save(&conn).await?;
 
         if CONFIG.mail_enabled() {
-            mail::send_emergency_access_recovery_rejected(&grantee_user.email, &headers.user.name).await?;
+            mail::send_emergency_access_recovery_rejected(
+                &grantee_user.email,
+                &headers.user.name,
+                grantee_user.locale(),
+            )
+            .await?;
         }
         Ok(Json(emergency_access.to_json()))
     } else {
@@ -759,13 +784,18 @@ pub async fn emergency_request_timeout_job(pool: DbPool) {
                         &grantor_user.email,
                         &grantee_user.name,
                         emer.get_type_as_str(),
+                        grantor_user.locale(),
                     )
                     .await
                     .expect("Error on sending email");
 
-                    mail::send_emergency_access_recovery_approved(&grantee_user.email, &grantor_user.name)
-                        .await
-                        .expect("Error on sending email");
+                    mail::send_emergency_access_recovery_approved(
+                        &grantee_user.email,
+                        &grantor_user.name,
+                        grantee_user.locale(),
+                    )
+                    .await
+                    .expect("Error on sending email");
                 }
             }
         }
@@ -822,6 +852,7 @@ pub async fn emergency_notification_reminder_job(pool: DbPool) {
                         &grantee_user.name,
                         emer.get_type_as_str(),
                         "1", // This notification is only triggered one day before the activation
+                        grantor_user.locale(),
                     )
                     .await
                     .expect("Error on sending email");

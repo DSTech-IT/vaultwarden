@@ -87,11 +87,12 @@ async fn request_otp(headers: Headers, conn: DbConn) -> EmptyResult {
     let generated_token = crypto::generate_email_token(CONFIG.email_token_size());
     let pa_data = ProtectedActionData::new(generated_token);
 
+    let locale = user.locale().to_owned();
     // Uses EmailVerificationChallenge as type to show that it's not verified yet.
     let twofactor = TwoFactor::new(user.uuid, TwoFactorType::ProtectedActions, pa_data.to_json());
     twofactor.save(&conn).await?;
 
-    mail::send_protected_action_token(&user.email, &pa_data.token).await?;
+    mail::send_protected_action_token(&user.email, &pa_data.token, &locale).await?;
 
     Ok(())
 }

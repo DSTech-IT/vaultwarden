@@ -118,16 +118,21 @@ fn sanitize_data(data: &mut serde_json::Value) {
     }
 }
 
-fn get_text(template_name: &'static str, data: serde_json::Value) -> Result<(String, String, String), Error> {
+fn get_text(
+    template_name: &'static str,
+    locale: &str,
+    data: serde_json::Value,
+) -> Result<(String, String, String), Error> {
     let mut data = data;
     sanitize_data(&mut data);
-    let (subject_html, body_html) = get_template(&format!("{template_name}.html"), &data)?;
-    let (_subject_text, body_text) = get_template(template_name, &data)?;
+    let (subject_html, body_html) = get_template(&format!("{template_name}.html"), locale, &data)?;
+    let (_subject_text, body_text) = get_template(template_name, locale, &data)?;
     Ok((subject_html, body_html, body_text))
 }
 
-fn get_template(template_name: &str, data: &serde_json::Value) -> Result<(String, String), Error> {
-    let text = CONFIG.render_template(template_name, data)?;
+fn get_template(template_name: &str, locale: &str, data: &serde_json::Value) -> Result<(String, String), Error> {
+    let template_name = CONFIG.resolve_template_name(template_name, locale);
+    let text = CONFIG.render_template(&template_name, data)?;
     let mut text_split = text.split("<!---------------->");
 
     let subject = if let Some(s) = text_split.next() {
@@ -149,7 +154,7 @@ fn get_template(template_name: &str, data: &serde_json::Value) -> Result<(String
     Ok((subject, body))
 }
 
-pub async fn send_password_hint(address: &str, hint: Option<String>) -> EmptyResult {
+pub async fn send_password_hint(address: &str, hint: Option<String>, locale: &str) -> EmptyResult {
     let template_name = if hint.is_some() {
         "email/pw_hint_some"
     } else {
@@ -158,6 +163,7 @@ pub async fn send_password_hint(address: &str, hint: Option<String>) -> EmptyRes
 
     let (subject, body_html, body_text) = get_text(
         template_name,
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -168,12 +174,13 @@ pub async fn send_password_hint(address: &str, hint: Option<String>) -> EmptyRes
     send_email(address, &subject, body_html, body_text).await
 }
 
-pub async fn send_delete_account(address: &str, user_id: &UserId) -> EmptyResult {
+pub async fn send_delete_account(address: &str, user_id: &UserId, locale: &str) -> EmptyResult {
     let claims = generate_delete_claims(user_id.to_string());
     let delete_token = encode_jwt(&claims);
 
     let (subject, body_html, body_text) = get_text(
         "email/delete_account",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -186,12 +193,13 @@ pub async fn send_delete_account(address: &str, user_id: &UserId) -> EmptyResult
     send_email(address, &subject, body_html, body_text).await
 }
 
-pub async fn send_verify_email(address: &str, user_id: &UserId) -> EmptyResult {
+pub async fn send_verify_email(address: &str, user_id: &UserId, locale: &str) -> EmptyResult {
     let claims = generate_verify_email_claims(user_id);
     let verify_email_token = encode_jwt(&claims);
 
     let (subject, body_html, body_text) = get_text(
         "email/verify_email",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -204,7 +212,7 @@ pub async fn send_verify_email(address: &str, user_id: &UserId) -> EmptyResult {
     send_email(address, &subject, body_html, body_text).await
 }
 
-pub async fn send_register_verify_email(email: &str, token: &str) -> EmptyResult {
+pub async fn send_register_verify_email(email: &str, token: &str, locale: &str) -> EmptyResult {
     let mut query = url::Url::parse("https://query.builder").unwrap();
     query.query_pairs_mut().append_pair("email", email).append_pair("token", token);
     let Some(query_string) = query.query() else {
@@ -213,6 +221,7 @@ pub async fn send_register_verify_email(email: &str, token: &str) -> EmptyResult
 
     let (subject, body_html, body_text) = get_text(
         "email/register_verify_email",
+        locale,
         json!({
             // `url.Url` would place the anchor `#` after the query parameters
             "url": format!("{}/#/finish-signup/?{query_string}", CONFIG.domain()),
@@ -224,9 +233,10 @@ pub async fn send_register_verify_email(email: &str, token: &str) -> EmptyResult
     send_email(email, &subject, body_html, body_text).await
 }
 
-pub async fn send_welcome(address: &str) -> EmptyResult {
+pub async fn send_welcome(address: &str, locale: &str) -> EmptyResult {
     let (subject, body_html, body_text) = get_text(
         "email/welcome",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -236,12 +246,13 @@ pub async fn send_welcome(address: &str) -> EmptyResult {
     send_email(address, &subject, body_html, body_text).await
 }
 
-pub async fn send_welcome_must_verify(address: &str, user_id: &UserId) -> EmptyResult {
+pub async fn send_welcome_must_verify(address: &str, user_id: &UserId, locale: &str) -> EmptyResult {
     let claims = generate_verify_email_claims(user_id);
     let verify_email_token = encode_jwt(&claims);
 
     let (subject, body_html, body_text) = get_text(
         "email/welcome_must_verify",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -253,9 +264,10 @@ pub async fn send_welcome_must_verify(address: &str, user_id: &UserId) -> EmptyR
     send_email(address, &subject, body_html, body_text).await
 }
 
-pub async fn send_2fa_removed_from_org(address: &str, org_name: &str) -> EmptyResult {
+pub async fn send_2fa_removed_from_org(address: &str, org_name: &str, locale: &str) -> EmptyResult {
     let (subject, body_html, body_text) = get_text(
         "email/send_2fa_removed_from_org",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -266,9 +278,10 @@ pub async fn send_2fa_removed_from_org(address: &str, org_name: &str) -> EmptyRe
     send_email(address, &subject, body_html, body_text).await
 }
 
-pub async fn send_single_org_removed_from_org(address: &str, org_name: &str) -> EmptyResult {
+pub async fn send_single_org_removed_from_org(address: &str, org_name: &str, locale: &str) -> EmptyResult {
     let (subject, body_html, body_text) = get_text(
         "email/send_single_org_removed_from_org",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -327,6 +340,7 @@ pub async fn send_invite(
 
     let (subject, body_html, body_text) = get_text(
         "email/send_org_invite",
+        user.locale(),
         json!({
             // `url.Url` would place the anchor `#` after the query parameters
             "url": format!("{}/#/accept-organization/?{query_string}", CONFIG.domain()),
@@ -344,6 +358,7 @@ pub async fn send_emergency_access_invite(
     emer_id: EmergencyAccessId,
     grantor_name: &str,
     grantor_email: &str,
+    locale: &str,
 ) -> EmptyResult {
     let claims = generate_emergency_access_invite_claims(
         user_id,
@@ -370,6 +385,7 @@ pub async fn send_emergency_access_invite(
 
     let (subject, body_html, body_text) = get_text(
         "email/send_emergency_access_invite",
+        locale,
         json!({
             // `url.Url` would place the anchor `#` after the query parameters
             "url": format!("{}/#/accept-emergency/?{query_string}", CONFIG.domain()),
@@ -381,9 +397,10 @@ pub async fn send_emergency_access_invite(
     send_email(address, &subject, body_html, body_text).await
 }
 
-pub async fn send_emergency_access_invite_accepted(address: &str, grantee_email: &str) -> EmptyResult {
+pub async fn send_emergency_access_invite_accepted(address: &str, grantee_email: &str, locale: &str) -> EmptyResult {
     let (subject, body_html, body_text) = get_text(
         "email/emergency_access_invite_accepted",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -394,9 +411,10 @@ pub async fn send_emergency_access_invite_accepted(address: &str, grantee_email:
     send_email(address, &subject, body_html, body_text).await
 }
 
-pub async fn send_emergency_access_invite_confirmed(address: &str, grantor_name: &str) -> EmptyResult {
+pub async fn send_emergency_access_invite_confirmed(address: &str, grantor_name: &str, locale: &str) -> EmptyResult {
     let (subject, body_html, body_text) = get_text(
         "email/emergency_access_invite_confirmed",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -407,9 +425,10 @@ pub async fn send_emergency_access_invite_confirmed(address: &str, grantor_name:
     send_email(address, &subject, body_html, body_text).await
 }
 
-pub async fn send_emergency_access_recovery_approved(address: &str, grantor_name: &str) -> EmptyResult {
+pub async fn send_emergency_access_recovery_approved(address: &str, grantor_name: &str, locale: &str) -> EmptyResult {
     let (subject, body_html, body_text) = get_text(
         "email/emergency_access_recovery_approved",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -425,9 +444,11 @@ pub async fn send_emergency_access_recovery_initiated(
     grantee_name: &str,
     atype: &str,
     wait_time_days: &i32,
+    locale: &str,
 ) -> EmptyResult {
     let (subject, body_html, body_text) = get_text(
         "email/emergency_access_recovery_initiated",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -445,9 +466,11 @@ pub async fn send_emergency_access_recovery_reminder(
     grantee_name: &str,
     atype: &str,
     days_left: &str,
+    locale: &str,
 ) -> EmptyResult {
     let (subject, body_html, body_text) = get_text(
         "email/emergency_access_recovery_reminder",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -460,9 +483,10 @@ pub async fn send_emergency_access_recovery_reminder(
     send_email(address, &subject, body_html, body_text).await
 }
 
-pub async fn send_emergency_access_recovery_rejected(address: &str, grantor_name: &str) -> EmptyResult {
+pub async fn send_emergency_access_recovery_rejected(address: &str, grantor_name: &str, locale: &str) -> EmptyResult {
     let (subject, body_html, body_text) = get_text(
         "email/emergency_access_recovery_rejected",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -473,9 +497,15 @@ pub async fn send_emergency_access_recovery_rejected(address: &str, grantor_name
     send_email(address, &subject, body_html, body_text).await
 }
 
-pub async fn send_emergency_access_recovery_timed_out(address: &str, grantee_name: &str, atype: &str) -> EmptyResult {
+pub async fn send_emergency_access_recovery_timed_out(
+    address: &str,
+    grantee_name: &str,
+    atype: &str,
+    locale: &str,
+) -> EmptyResult {
     let (subject, body_html, body_text) = get_text(
         "email/emergency_access_recovery_timed_out",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -487,9 +517,10 @@ pub async fn send_emergency_access_recovery_timed_out(address: &str, grantee_nam
     send_email(address, &subject, body_html, body_text).await
 }
 
-pub async fn send_invite_accepted(new_user_email: &str, address: &str, org_name: &str) -> EmptyResult {
+pub async fn send_invite_accepted(new_user_email: &str, address: &str, org_name: &str, locale: &str) -> EmptyResult {
     let (subject, body_html, body_text) = get_text(
         "email/invite_accepted",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -501,9 +532,10 @@ pub async fn send_invite_accepted(new_user_email: &str, address: &str, org_name:
     send_email(address, &subject, body_html, body_text).await
 }
 
-pub async fn send_invite_confirmed(address: &str, org_name: &str) -> EmptyResult {
+pub async fn send_invite_confirmed(address: &str, org_name: &str, locale: &str) -> EmptyResult {
     let (subject, body_html, body_text) = get_text(
         "email/invite_confirmed",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -514,10 +546,17 @@ pub async fn send_invite_confirmed(address: &str, org_name: &str) -> EmptyResult
     send_email(address, &subject, body_html, body_text).await
 }
 
-pub async fn send_new_device_logged_in(address: &str, ip: &str, dt: &NaiveDateTime, device: &Device) -> EmptyResult {
+pub async fn send_new_device_logged_in(
+    address: &str,
+    ip: &str,
+    dt: &NaiveDateTime,
+    device: &Device,
+    locale: &str,
+) -> EmptyResult {
     let fmt = "%A, %B %_d, %Y at %r %Z";
     let (subject, body_html, body_text) = get_text(
         "email/new_device_logged_in",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -537,10 +576,12 @@ pub async fn send_incomplete_2fa_login(
     dt: &NaiveDateTime,
     device_name: &str,
     device_type: &str,
+    locale: &str,
 ) -> EmptyResult {
     let fmt = "%A, %B %_d, %Y at %r %Z";
     let (subject, body_html, body_text) = get_text(
         "email/incomplete_2fa_login",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -555,9 +596,10 @@ pub async fn send_incomplete_2fa_login(
     send_email(address, &subject, body_html, body_text).await
 }
 
-pub async fn send_token(address: &str, token: &str) -> EmptyResult {
+pub async fn send_token(address: &str, token: &str, locale: &str) -> EmptyResult {
     let (subject, body_html, body_text) = get_text(
         "email/twofactor_email",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -568,9 +610,10 @@ pub async fn send_token(address: &str, token: &str) -> EmptyResult {
     send_email(address, &subject, body_html, body_text).await
 }
 
-pub async fn send_change_email(address: &str, token: &str) -> EmptyResult {
+pub async fn send_change_email(address: &str, token: &str, locale: &str) -> EmptyResult {
     let (subject, body_html, body_text) = get_text(
         "email/change_email",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -581,9 +624,10 @@ pub async fn send_change_email(address: &str, token: &str) -> EmptyResult {
     send_email(address, &subject, body_html, body_text).await
 }
 
-pub async fn send_change_email_existing(address: &str, acting_address: &str) -> EmptyResult {
+pub async fn send_change_email_existing(address: &str, acting_address: &str, locale: &str) -> EmptyResult {
     let (subject, body_html, body_text) = get_text(
         "email/change_email_existing",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -595,9 +639,10 @@ pub async fn send_change_email_existing(address: &str, acting_address: &str) -> 
     send_email(address, &subject, body_html, body_text).await
 }
 
-pub async fn send_change_email_invited(address: &str, acting_address: &str) -> EmptyResult {
+pub async fn send_change_email_invited(address: &str, acting_address: &str, locale: &str) -> EmptyResult {
     let (subject, body_html, body_text) = get_text(
         "email/change_email_invited",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -609,9 +654,10 @@ pub async fn send_change_email_invited(address: &str, acting_address: &str) -> E
     send_email(address, &subject, body_html, body_text).await
 }
 
-pub async fn send_sso_change_email(address: &str) -> EmptyResult {
+pub async fn send_sso_change_email(address: &str, locale: &str) -> EmptyResult {
     let (subject, body_html, body_text) = get_text(
         "email/sso_change_email",
+        locale,
         json!({
             "url": format!("{}/#/settings/account", CONFIG.domain()),
             "img_src": CONFIG._smtp_img_src(),
@@ -622,8 +668,11 @@ pub async fn send_sso_change_email(address: &str) -> EmptyResult {
 }
 
 pub async fn send_test(address: &str) -> EmptyResult {
+    // The SMTP test email is an admin-only diagnostic, not tied to any user, so it's
+    // always sent in English (the template isn't translated either).
     let (subject, body_html, body_text) = get_text(
         "email/smtp_test",
+        User::DEFAULT_LOCALE,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -640,9 +689,11 @@ pub async fn send_admin_account_recovery(
     reset_password: bool,
     reset_2fa: bool,
     fallback_2fa_email: bool,
+    locale: &str,
 ) -> EmptyResult {
     let (subject, body_html, body_text) = get_text(
         "email/admin_account_recovery",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),
@@ -656,9 +707,10 @@ pub async fn send_admin_account_recovery(
     send_email(address, &subject, body_html, body_text).await
 }
 
-pub async fn send_protected_action_token(address: &str, token: &str) -> EmptyResult {
+pub async fn send_protected_action_token(address: &str, token: &str, locale: &str) -> EmptyResult {
     let (subject, body_html, body_text) = get_text(
         "email/protected_action",
+        locale,
         json!({
             "url": CONFIG.domain(),
             "img_src": CONFIG._smtp_img_src(),

@@ -299,9 +299,16 @@ async fn accept_org_invite(
         let Some(org) = Organization::find_by_uuid(&member.org_uuid, conn).await else {
             err!("Organization not found.")
         };
-        // User was invited to an organization, so they must be confirmed manually after acceptance
-        mail::send_invite_accepted(&user.email, &member.invited_by_email.unwrap_or(org.billing_email), &org.name)
-            .await?;
+        // User was invited to an organization, so they must be confirmed manually after acceptance.
+        // The recipient here is the org admin who sent the invite, not `user`, and we don't have
+        // their User record at hand, so fall back to English.
+        mail::send_invite_accepted(
+            &user.email,
+            &member.invited_by_email.unwrap_or(org.billing_email),
+            &org.name,
+            User::DEFAULT_LOCALE,
+        )
+        .await?;
     }
 
     Ok(())

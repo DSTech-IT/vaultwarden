@@ -1672,6 +1672,28 @@ impl Config {
         }
     }
 
+    /// Resolves an email template name (e.g. `email/verify_email`) to its localized
+    /// variant (`email/verify_email.de`) when one is registered, falling back to the
+    /// English default (the unsuffixed name) otherwise.
+    pub fn resolve_template_name(&self, base_name: &str, locale: &str) -> String {
+        if locale == "en" {
+            return base_name.to_owned();
+        }
+
+        let localized_name = format!("{base_name}.{locale}");
+        let has_localized = if self.reload_templates() {
+            load_templates(CONFIG.templates_folder()).has_template(&localized_name)
+        } else {
+            self.inner.read().unwrap().templates.has_template(&localized_name)
+        };
+
+        if has_localized {
+            localized_name
+        } else {
+            base_name.to_owned()
+        }
+    }
+
     pub fn render_fallback_template<T: serde::ser::Serialize>(&self, name: &str, data: &T) -> Result<String, Error> {
         let hb = &self.inner.read().unwrap().templates;
         hb.render(&format!("fallback_{name}"), data).map_err(Into::into)
@@ -1744,6 +1766,19 @@ where
         }};
     }
 
+    // Register a translated variant of an `email/$name(.html)` template, sourced from
+    // `static/templates/email/$locale/$name(.html).hbs`, and registered as
+    // `email/$name.$locale(.html)`. Missing translations simply keep the English default,
+    // see `Config::resolve_template_name()`.
+    macro_rules! reg_email_locale {
+        ($locale:expr, $name:expr) => {{
+            let template = include_str!(concat!("static/templates/email/", $locale, "/", $name, ".hbs"));
+            hb.register_template_string(concat!("email/", $name, ".", $locale), template).unwrap();
+            let template_html = include_str!(concat!("static/templates/email/", $locale, "/", $name, ".html.hbs"));
+            hb.register_template_string(concat!("email/", $name, ".", $locale, ".html"), template_html).unwrap();
+        }};
+    }
+
     // First register default templates here
     reg!("email/email_header");
     reg!("email/email_footer");
@@ -1779,6 +1814,38 @@ where
     reg!("email/verify_email", ".html");
     reg!("email/welcome_must_verify", ".html");
     reg!("email/welcome", ".html");
+
+    // Translated email templates. `email_header`/`email_footer`/`email_footer_text` contain
+    // no user-facing text and are shared as-is across all locales.
+    reg_email_locale!("de", "admin_account_recovery");
+    reg_email_locale!("de", "change_email_existing");
+    reg_email_locale!("de", "change_email_invited");
+    reg_email_locale!("de", "change_email");
+    reg_email_locale!("de", "delete_account");
+    reg_email_locale!("de", "emergency_access_invite_accepted");
+    reg_email_locale!("de", "emergency_access_invite_confirmed");
+    reg_email_locale!("de", "emergency_access_recovery_approved");
+    reg_email_locale!("de", "emergency_access_recovery_initiated");
+    reg_email_locale!("de", "emergency_access_recovery_rejected");
+    reg_email_locale!("de", "emergency_access_recovery_reminder");
+    reg_email_locale!("de", "emergency_access_recovery_timed_out");
+    reg_email_locale!("de", "incomplete_2fa_login");
+    reg_email_locale!("de", "invite_accepted");
+    reg_email_locale!("de", "invite_confirmed");
+    reg_email_locale!("de", "new_device_logged_in");
+    reg_email_locale!("de", "protected_action");
+    reg_email_locale!("de", "pw_hint_none");
+    reg_email_locale!("de", "pw_hint_some");
+    reg_email_locale!("de", "register_verify_email");
+    reg_email_locale!("de", "send_2fa_removed_from_org");
+    reg_email_locale!("de", "send_emergency_access_invite");
+    reg_email_locale!("de", "send_org_invite");
+    reg_email_locale!("de", "send_single_org_removed_from_org");
+    reg_email_locale!("de", "sso_change_email");
+    reg_email_locale!("de", "twofactor_email");
+    reg_email_locale!("de", "verify_email");
+    reg_email_locale!("de", "welcome_must_verify");
+    reg_email_locale!("de", "welcome");
 
     reg!("admin/base");
     reg!("admin/login");

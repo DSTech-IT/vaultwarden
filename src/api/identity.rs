@@ -367,7 +367,7 @@ async fn sso_login(
 
             if user.email != user_infos.email {
                 if CONFIG.mail_enabled() {
-                    mail::send_sso_change_email(&user_infos.email).await?;
+                    mail::send_sso_change_email(&user_infos.email, user.locale()).await?;
                 }
                 info!("User {} email changed in SSO provider from {} to {}", user.uuid, user.email, user_infos.email);
             }
@@ -482,7 +482,7 @@ async fn password_login(
                     error!("Error updating user: {e:#?}");
                 }
 
-                if let Err(e) = mail::send_verify_email(&user.email, &user.uuid).await {
+                if let Err(e) = mail::send_verify_email(&user.email, &user.uuid, user.locale()).await {
                     error!("Error auto-sending email verification email: {e:#?}");
                 }
             }
@@ -517,7 +517,9 @@ async fn authenticated_response(
 ) -> JsonResult {
     if CONFIG.mail_enabled() && device.is_new() {
         let now = Utc::now().naive_utc();
-        if let Err(e) = mail::send_new_device_logged_in(&user.email, &ip.ip.to_string(), &now, device).await {
+        if let Err(e) =
+            mail::send_new_device_logged_in(&user.email, &ip.ip.to_string(), &now, device, user.locale()).await
+        {
             error!("Error sending new device email: {e:#?}");
 
             if CONFIG.require_device_email() {
@@ -665,7 +667,9 @@ async fn user_api_key_login(
 
     if CONFIG.mail_enabled() && device.is_new() {
         let now = Utc::now().naive_utc();
-        if let Err(e) = mail::send_new_device_logged_in(&user.email, &ip.ip.to_string(), &now, &device).await {
+        if let Err(e) =
+            mail::send_new_device_logged_in(&user.email, &ip.ip.to_string(), &now, &device, user.locale()).await
+        {
             error!("Error sending new device email: {e:#?}");
 
             if CONFIG.require_device_email() {
@@ -1125,7 +1129,8 @@ async fn register_verification_email(
             let sleep_ms: u64 = rng.random_range(900..=1100);
             tokio::time::sleep(tokio::time::Duration::from_millis(sleep_ms)).await;
         } else {
-            mail::send_register_verify_email(&data.email, &token).await?;
+            let locale = user.as_ref().map_or(User::DEFAULT_LOCALE, |u| u.locale());
+            mail::send_register_verify_email(&data.email, &token, locale).await?;
         }
 
         Ok(RegisterVerificationResponse::NoContent(()))

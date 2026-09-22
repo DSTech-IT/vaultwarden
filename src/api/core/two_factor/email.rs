@@ -126,7 +126,10 @@ pub async fn send_token(user_id: &UserId, conn: &DbConn) -> EmptyResult {
     twofactor.data = twofactor_data.to_json();
     twofactor.save(conn).await?;
 
-    mail::send_token(&twofactor_data.email, &twofactor_data.last_token.map_res("Token is empty")?).await?;
+    let locale = User::find_by_uuid(user_id, conn)
+        .await
+        .map_or_else(|| User::DEFAULT_LOCALE.to_owned(), |u| u.locale().to_owned());
+    mail::send_token(&twofactor_data.email, &twofactor_data.last_token.map_res("Token is empty")?, &locale).await?;
 
     Ok(())
 }
@@ -191,10 +194,11 @@ async fn send_email(data: Json<SendEmailData>, headers: Headers, conn: DbConn) -
     let twofactor_data = EmailTokenData::new(data.email, generated_token);
 
     // Uses EmailVerificationChallenge as type to show that it's not verified yet.
+    let locale = user.locale().to_owned();
     let twofactor = TwoFactor::new(user.uuid, TwoFactorType::EmailVerificationChallenge, twofactor_data.to_json());
     twofactor.save(&conn).await?;
 
-    mail::send_token(&twofactor_data.email, &twofactor_data.last_token.map_res("Token is empty")?).await?;
+    mail::send_token(&twofactor_data.email, &twofactor_data.last_token.map_res("Token is empty")?, &locale).await?;
 
     Ok(())
 }

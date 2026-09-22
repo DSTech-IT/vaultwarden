@@ -1338,7 +1338,10 @@ async fn accept_invite(
     } else if CONFIG.mail_enabled() {
         // User was invited from /admin, so they are automatically confirmed
         let org_name = CONFIG.invitation_org_name();
-        mail::send_invite_confirmed(&claims.email, &org_name).await?;
+        let locale = User::find_by_mail(&claims.email, &conn)
+            .await
+            .map_or_else(|| User::DEFAULT_LOCALE.to_owned(), |u| u.locale().to_owned());
+        mail::send_invite_confirmed(&claims.email, &org_name, &locale).await?;
     }
 
     Ok(())
@@ -1464,12 +1467,12 @@ async fn confirm_invite_impl(
         } else {
             err!("Error looking up organization.")
         };
-        let address = if let Some(user) = User::find_by_uuid(&member_to_confirm.user_uuid, conn).await {
-            user.email
+        let (address, locale) = if let Some(user) = User::find_by_uuid(&member_to_confirm.user_uuid, conn).await {
+            (user.email.clone(), user.locale().to_owned())
         } else {
             err!("Error looking up user.")
         };
-        mail::send_invite_confirmed(&address, &org_name).await?;
+        mail::send_invite_confirmed(&address, &org_name, &locale).await?;
     }
 
     let save_result = member_to_confirm.save(conn).await;
@@ -2152,7 +2155,7 @@ async fn put_policy(
                     let org = Organization::find_by_uuid(&member.org_uuid, &conn).await.unwrap();
                     let user = User::find_by_uuid(&member.user_uuid, &conn).await.unwrap();
 
-                    mail::send_single_org_removed_from_org(&user.email, &org.name).await?;
+                    mail::send_single_org_removed_from_org(&user.email, &org.name, user.locale()).await?;
                 }
 
                 log_event(
@@ -3047,6 +3050,7 @@ async fn recover_account(
         req.reset_master_password,
         req.reset_two_factor,
         fallback_2fa_email,
+        user.locale(),
     )
     .await
     {

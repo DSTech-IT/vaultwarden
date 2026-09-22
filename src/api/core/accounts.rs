@@ -409,11 +409,11 @@ pub async fn register(data: Json<RegisterData>, email_verification: bool, conn: 
 
     if CONFIG.mail_enabled() {
         if CONFIG.signups_verify() && !email_verified {
-            if let Err(e) = mail::send_welcome_must_verify(&user.email, &user.uuid).await {
+            if let Err(e) = mail::send_welcome_must_verify(&user.email, &user.uuid, user.locale()).await {
                 error!("Error sending welcome email: {e:#?}");
             }
             user.last_verifying_at = Some(user.created_at);
-        } else if let Err(e) = mail::send_welcome(&user.email).await {
+        } else if let Err(e) = mail::send_welcome(&user.email, user.locale()).await {
             error!("Error sending welcome email: {e:#?}");
         }
 
@@ -484,7 +484,7 @@ async fn post_set_password(data: Json<SetPasswordData>, headers: Headers, conn: 
     }
 
     if CONFIG.mail_enabled() {
-        mail::send_welcome(&user.email.to_lowercase()).await?;
+        mail::send_welcome(&user.email.to_lowercase(), user.locale()).await?;
     } else {
         Membership::accept_user_invitations(&user.uuid, &conn).await?;
     }
@@ -508,7 +508,10 @@ async fn profile(headers: Headers, conn: DbConn) -> Json<Value> {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ProfileData {
-    // culture: String, // Ignored, always use en-US
+    // The Bitwarden clients send an IETF language tag here (e.g. `en-US`, `de-DE`).
+    // We only keep the bare language code, and only use it to pick a translated
+    // email template; the UI language itself remains entirely client-side.
+    culture: Option<String>,
     name: String,
 }
 
@@ -529,6 +532,9 @@ async fn post_profile(data: Json<ProfileData>, headers: Headers, conn: DbConn) -
 
     let mut user = headers.user;
     user.name = data.name;
+    if let Some(culture) = data.culture {
+        user.locale = User::normalize_locale(&culture);
+    }
 
     user.save(&conn).await?;
     Ok(Json(user.to_json(&conn).await))
@@ -1087,12 +1093,16 @@ async fn post_email_token(data: Json<EmailTokenData>, headers: Headers, conn: Db
             if existing_user.password_hash.is_empty() {
                 // inform an invited user about how to delete their temporary account if the
                 // request was done intentionally and they want to update their mail address
-                if let Err(e) = mail::send_change_email_invited(&data.new_email, &user.email).await {
+                if let Err(e) =
+                    mail::send_change_email_invited(&data.new_email, &user.email, existing_user.locale()).await
+                {
                     error!("Error sending change-email-invited email: {e:#?}");
                 }
             } else {
                 // inform existing user about the failed attempt to change their mail address
-                if let Err(e) = mail::send_change_email_existing(&data.new_email, &user.email).await {
+                if let Err(e) =
+                    mail::send_change_email_existing(&data.new_email, &user.email, existing_user.locale()).await
+                {
                     error!("Error sending change-email-existing email: {e:#?}");
                 }
             }
@@ -1107,7 +1117,7 @@ async fn post_email_token(data: Json<EmailTokenData>, headers: Headers, conn: Db
     let token = crypto::generate_email_token(6);
 
     if CONFIG.mail_enabled() {
-        if let Err(e) = mail::send_change_email(&data.new_email, &token).await {
+        if let Err(e) = mail::send_change_email(&data.new_email, &token, user.locale()).await {
             error!("Error sending change-email email: {e:#?}");
         }
     } else {
@@ -1190,7 +1200,7 @@ async fn post_verify_email(headers: Headers) -> EmptyResult {
         err!("Cannot verify email address");
     }
 
-    if let Err(e) = mail::send_verify_email(&user.email, &user.uuid).await {
+    if let Err(e) = mail::send_verify_email(&user.email, &user.uuid, user.locale()).await {
         error!("Error sending verify_email email: {e:#?}");
     }
 
@@ -1242,7 +1252,7 @@ async fn post_delete_recover(data: Json<DeleteRecoverData>, ip: ClientIp, conn: 
 
     if CONFIG.mail_enabled() {
         if let Some(user) = User::find_by_mail(&data.email, &conn).await
-            && let Err(e) = mail::send_delete_account(&user.email, &user.uuid).await
+            && let Err(e) = mail::send_delete_account(&user.email, &user.uuid, user.locale()).await
         {
             error!("Error sending delete account email: {e:#?}");
         }
@@ -1339,9 +1349,10 @@ async fn password_hint(data: Json<PasswordHintData>, ip: ClientIp, conn: DbConn)
             }
         }
         Some(user) => {
+            let locale = user.locale().to_owned();
             let hint: Option<String> = user.password_hint;
             if CONFIG.mail_enabled() {
-                mail::send_password_hint(email, hint).await?;
+                mail::send_password_hint(email, hint, &locale).await?;
                 Ok(())
             } else if let Some(hint) = hint {
                 err!(format!("Your password hint is: {hint}"));
