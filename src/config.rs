@@ -1877,6 +1877,36 @@ where
     reg_email_locale!("fr", "welcome_must_verify");
     reg_email_locale!("fr", "welcome");
 
+    reg_email_locale!("it", "admin_account_recovery");
+    reg_email_locale!("it", "change_email_existing");
+    reg_email_locale!("it", "change_email_invited");
+    reg_email_locale!("it", "change_email");
+    reg_email_locale!("it", "delete_account");
+    reg_email_locale!("it", "emergency_access_invite_accepted");
+    reg_email_locale!("it", "emergency_access_invite_confirmed");
+    reg_email_locale!("it", "emergency_access_recovery_approved");
+    reg_email_locale!("it", "emergency_access_recovery_initiated");
+    reg_email_locale!("it", "emergency_access_recovery_rejected");
+    reg_email_locale!("it", "emergency_access_recovery_reminder");
+    reg_email_locale!("it", "emergency_access_recovery_timed_out");
+    reg_email_locale!("it", "incomplete_2fa_login");
+    reg_email_locale!("it", "invite_accepted");
+    reg_email_locale!("it", "invite_confirmed");
+    reg_email_locale!("it", "new_device_logged_in");
+    reg_email_locale!("it", "protected_action");
+    reg_email_locale!("it", "pw_hint_none");
+    reg_email_locale!("it", "pw_hint_some");
+    reg_email_locale!("it", "register_verify_email");
+    reg_email_locale!("it", "send_2fa_removed_from_org");
+    reg_email_locale!("it", "send_emergency_access_invite");
+    reg_email_locale!("it", "send_org_invite");
+    reg_email_locale!("it", "send_single_org_removed_from_org");
+    reg_email_locale!("it", "sso_change_email");
+    reg_email_locale!("it", "twofactor_email");
+    reg_email_locale!("it", "verify_email");
+    reg_email_locale!("it", "welcome_must_verify");
+    reg_email_locale!("it", "welcome");
+
     reg!("admin/base");
     reg!("admin/login");
     reg!("admin/settings");

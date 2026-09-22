@@ -1,0 +1,12 @@
+Ripristino amministrativo dell'account dall'organizzazione {{org_name}}
+<!---------------->
+{{#if reset_password}}
+La password principale di {{user_name}} è stata modificata.
+{{/if}}
+{{#if reset_2fa}}
+I Suoi provider di verifica in due passaggi sono stati reimpostati.{{#if fallback_2fa_email}} L'autenticazione a due fattori via e-mail è stata attivata come soluzione di riserva.{{/if}}
+{{/if}}
+
+Se non ha richiesto Lei questa operazione, contatti immediatamente il Suo amministratore.
+
+{{> email/email_footer_text }}

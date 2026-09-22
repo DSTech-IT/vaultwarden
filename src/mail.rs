@@ -128,6 +128,11 @@ fn translate_emergency_access_type(atype: &str, locale: &str) -> String {
         ("de", "Takeover") => "übernehmen",
         ("fr", "View") => "consulter",
         ("fr", "Takeover") => "prendre le contrôle de",
+        // Includes the object ("il Suo account") unlike the fragments above, to avoid the
+        // Italian preposition contraction "di" + "il" -> "del": the it/*.hbs templates say
+        // just "per {{atype}}" rather than repeating the object after the placeholder.
+        ("it", "View") => "visualizzare il Suo account",
+        ("it", "Takeover") => "assumere il controllo del Suo account",
         _ => atype,
     }
     .to_owned()
