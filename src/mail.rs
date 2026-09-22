@@ -133,6 +133,8 @@ fn translate_emergency_access_type(atype: &str, locale: &str) -> String {
         // just "per {{atype}}" rather than repeating the object after the placeholder.
         ("it", "View") => "visualizzare il Suo account",
         ("it", "Takeover") => "assumere il controllo del Suo account",
+        ("es", "View") => "ver",
+        ("es", "Takeover") => "tomar el control de",
         _ => atype,
     }
     .to_owned()

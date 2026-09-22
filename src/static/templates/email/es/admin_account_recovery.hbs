@@ -1,0 +1,12 @@
+Recuperación de cuenta por el administrador de la organización {{org_name}}
+<!---------------->
+{{#if reset_password}}
+Se ha cambiado la contraseña maestra de {{user_name}}.
+{{/if}}
+{{#if reset_2fa}}
+Se han restablecido sus proveedores de verificación en dos pasos.{{#if fallback_2fa_email}} Se ha activado la autenticación de dos factores por correo electrónico como alternativa.{{/if}}
+{{/if}}
+
+Si usted no inició esta solicitud, póngase en contacto con su administrador de inmediato.
+
+{{> email/email_footer_text }}
